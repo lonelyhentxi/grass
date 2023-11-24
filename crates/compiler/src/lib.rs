@@ -80,7 +80,7 @@ pub use crate::error::{
     PublicSassErrorKind as ErrorKind, SassError as Error, SassResult as Result,
 };
 pub use crate::fs::{Fs, NullFs, StdFs};
-pub use crate::options::{InputSyntax, Options, OutputStyle};
+pub use crate::options::{InputSyntax, Options, OutputStyle, CustomImporter};
 pub use crate::{builtin::Builtin, evaluate::Visitor};
 pub(crate) use crate::{context_flags::ContextFlags, lexer::Token};
 use crate::{lexer::Lexer, parse::ScssParser};
