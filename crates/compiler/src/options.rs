@@ -5,6 +5,14 @@ use std::{
 
 use crate::{builtin::Builtin, Fs, StdFs};
 
+pub trait CustomImporter: std::fmt::Debug {
+    fn find_import(&self, 
+        current_path: &Path, 
+        import_path: &Path,
+        load_paths: &[PathBuf]
+    ) -> Option<PathBuf>;
+}
+
 /// Configuration for Sass compilation
 ///
 /// The simplest usage is `grass::Options::default()`; however, a builder pattern
@@ -19,6 +27,7 @@ pub struct Options<'a> {
     pub(crate) quiet: bool,
     pub(crate) input_syntax: Option<InputSyntax>,
     pub(crate) custom_fns: HashMap<String, Builtin>,
+    pub(crate) custom_importer: Option<&'a dyn CustomImporter>
 }
 
 impl Default for Options<'_> {
@@ -33,6 +42,7 @@ impl Default for Options<'_> {
             quiet: false,
             input_syntax: None,
             custom_fns: HashMap::new(),
+            custom_importer: None
         }
     }
 }
@@ -138,6 +148,13 @@ impl<'a> Options<'a> {
     #[inline]
     pub const fn unicode_error_messages(mut self, unicode_error_messages: bool) -> Self {
         self.unicode_error_messages = unicode_error_messages;
+        self
+    }
+
+    #[must_use]
+    #[inline]
+    pub const fn custom_importer (mut self, importer: Option<&'a dyn CustomImporter>) -> Self {
+        self.custom_importer = importer;
         self
     }
 
