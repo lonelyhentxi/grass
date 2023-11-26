@@ -17,7 +17,7 @@ proc-macro = true
 
 [dependencies]
 syn = { version = "1", default-features = false }
-grass_compiler = { path = "../compiler", version = "=0.13.0" }
+grass_compiler = { path = "../compiler", version = "=0.13.0-pro.1" }
 quote = { version = "1.0.33", default-features = false }
 
 [features]
