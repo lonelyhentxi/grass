@@ -1,6 +1,6 @@
 [package]
 name = "include_sass"
-version = "0.13.0"
+version = "0.13.0-pro.1"
 edition = "2021"
 description = "Internal implementation of the grass::include! macro"
 readme = "../../README.md"
@@ -16,9 +16,9 @@ rust-version = "1.64.0"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.103", default-features = false }
+syn = { version = "1", default-features = false }
 grass_compiler = { path = "../compiler", version = "=0.13.0" }
-quote = { version = "1.0.23", default-features = false }
+quote = { version = "1.0.33", default-features = false }
 
 [features]
 nightly = []

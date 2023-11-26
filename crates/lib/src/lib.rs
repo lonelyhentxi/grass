@@ -29,45 +29,44 @@ fn main() -> Result<(), Box<grass::Error>> {
 cargo install grass
 grass input.scss
 ```
-*/
+ */
 
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![warn(clippy::all, clippy::cargo, clippy::dbg_macro)]
 #![deny(missing_debug_implementations)]
 #![allow(
-    clippy::use_self,
-    // filter isn't fallible
-    clippy::manual_filter_map,
-    renamed_and_removed_lints,
-    clippy::unknown_clippy_lints,
-    clippy::single_match,
-    clippy::new_without_default,
-    clippy::single_match_else,
-    clippy::multiple_crate_versions,
-    clippy::wrong_self_convention,
-    clippy::comparison_chain,
+clippy::use_self,
+// filter isn't fallible
+clippy::manual_filter_map,
+renamed_and_removed_lints,
+clippy::unknown_clippy_lints,
+clippy::single_match,
+clippy::new_without_default,
+clippy::single_match_else,
+clippy::multiple_crate_versions,
+clippy::wrong_self_convention,
+clippy::comparison_chain,
 
-    // these features are only available on nightly
-    clippy::unnested_or_patterns,
-    clippy::uninlined_format_args,
+// these features are only available on nightly
+clippy::unnested_or_patterns,
+clippy::uninlined_format_args,
 
-    // todo: these should be enabled
-    clippy::cast_sign_loss,
-    clippy::cast_lossless,
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
+// todo: these should be enabled
+clippy::cast_sign_loss,
+clippy::cast_lossless,
+clippy::cast_precision_loss,
+clippy::float_cmp,
 
-    // todo: unignore once we bump MSRV
-    clippy::format_push_string,
-    clippy::unnecessary_unwrap,
-    clippy::needless_late_init,
-
-    unknown_lints,
+// todo: unignore once we bump MSRV
+clippy::format_push_string,
+clippy::unnecessary_unwrap,
+clippy::needless_late_init,
+unknown_lints,
 )]
 
 pub use grass_compiler::{
     from_path, from_string, Error, ErrorKind, Fs, InputSyntax, NullFs, Options, OutputStyle,
-    Result, StdFs, CustomImporter
+    Result, StdFs, CustomImporter,
 };
 
 /// Include CSS in your binary at compile time from a Sass source file

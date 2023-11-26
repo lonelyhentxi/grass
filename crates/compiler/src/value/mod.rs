@@ -21,6 +21,7 @@ pub use number::*;
 pub use sass_function::{SassFunction, UserDefinedFunction};
 pub(crate) use sass_number::conversion_factor;
 pub use sass_number::SassNumber;
+pub(crate) use sass_mixin::{SassMixin, UserDefinedMixin};
 
 mod arglist;
 mod calculation;
@@ -28,6 +29,7 @@ mod map;
 mod number;
 mod sass_function;
 mod sass_number;
+mod sass_mixin;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -40,6 +42,8 @@ pub enum Value {
     String(String, QuoteKind),
     Map(SassMap),
     ArgList(ArgList),
+    /// Returned by `get-mixin()`
+    MixinRef(Box<SassMixin>),
     /// Returned by `get-function()`
     FunctionRef(Box<SassFunction>),
     Calculation(SassCalculation),
@@ -81,6 +85,13 @@ impl PartialEq for Value {
             Value::FunctionRef(fn1) => {
                 if let Value::FunctionRef(fn2) = other {
                     fn1 == fn2
+                } else {
+                    false
+                }
+            }
+            Value::MixinRef(mixin1) => {
+                if let Value::MixinRef(mixin2) = other {
+                    mixin1 == mixin2
                 } else {
                     false
                 }
@@ -212,7 +223,7 @@ impl Value {
             Value::Null => true,
             Value::String(i, QuoteKind::None) if i.is_empty() => true,
             Value::List(_, _, Brackets::Bracketed) => false,
-            Value::List(v, ..) => v.iter().all(Value::is_blank),
+            Value::List(v, _, brackets) => matches!((brackets, v.iter().all(Value::is_blank)), (Brackets::None, true)),
             Value::ArgList(v, ..) => v.is_blank(),
             _ => false,
         }
@@ -273,6 +284,7 @@ impl Value {
             Value::True | Value::False => "bool",
             Value::Null => "null",
             Value::Map(..) => "map",
+            Value::MixinRef(..) => "mixin"
         }
     }
 
@@ -286,10 +298,10 @@ impl Value {
     pub fn without_slash(self) -> Self {
         match self {
             Value::Dimension(SassNumber {
-                num,
-                unit,
-                as_slash: _,
-            }) => Value::Dimension(SassNumber {
+                                 num,
+                                 unit,
+                                 as_slash: _,
+                             }) => Value::Dimension(SassNumber {
                 num,
                 unit,
                 as_slash: None,
@@ -341,10 +353,10 @@ impl Value {
         Ok(match self {
             Value::Dimension(SassNumber { num, unit, .. }) => match &other {
                 Value::Dimension(SassNumber {
-                    num: num2,
-                    unit: unit2,
-                    ..
-                }) => {
+                                     num: num2,
+                                     unit: unit2,
+                                     ..
+                                 }) => {
                     if !unit.comparable(unit2) {
                         return Err(
                             (format!("Incompatible units {} and {}.", unit2, unit), span).into(),
@@ -366,7 +378,7 @@ impl Value {
                         ),
                         span,
                     )
-                        .into())
+                        .into());
                 }
             },
             _ => {
@@ -391,15 +403,15 @@ impl Value {
                 _ => true,
             },
             Value::Dimension(SassNumber {
-                num: n,
-                unit,
-                as_slash: _,
-            }) if !n.is_nan() => match other {
+                                 num: n,
+                                 unit,
+                                 as_slash: _,
+                             }) if !n.is_nan() => match other {
                 Value::Dimension(SassNumber {
-                    num: n2,
-                    unit: unit2,
-                    as_slash: _,
-                }) if !n2.is_nan() => {
+                                     num: n2,
+                                     unit: unit2,
+                                     as_slash: _,
+                                 }) if !n2.is_nan() => {
                     if !unit.comparable(unit2) {
                         true
                     } else if unit == unit2 {
@@ -526,7 +538,7 @@ impl Value {
                     format!("Undefined operation \"+{}\".", self.inspect(span)?),
                     span,
                 )
-                    .into())
+                    .into());
             }
             _ => Self::String(
                 format!(
@@ -545,13 +557,13 @@ impl Value {
                     format!("Undefined operation \"-{}\".", self.inspect(span)?),
                     span,
                 )
-                    .into())
+                    .into());
             }
             Self::Dimension(SassNumber {
-                num,
-                unit,
-                as_slash,
-            }) => Self::Dimension(SassNumber {
+                                num,
+                                unit,
+                                as_slash,
+                            }) => Self::Dimension(SassNumber {
                 num: -num,
                 unit,
                 as_slash,

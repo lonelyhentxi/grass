@@ -634,4 +634,5 @@ test!(
     "a {\n  color: join(a, b, space, null);\n}\n",
     "a {\n  color: a b;\n}\n"
 );
-test!(zip_no_args, "a {\n  color: zip();\n}\n", "");
+// [zip_no_args result](https://sass-lang.com/playground/#eJwzNExUqFZQSM7PyS+yUqjKLNDQtK4FAEPWBnQ=)
+error!(zip_no_args, "a {\n  color: zip();\n}\n", "Error: () isn't a valid CSS value.");

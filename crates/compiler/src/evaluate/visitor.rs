@@ -20,7 +20,7 @@ use crate::{
             declare_module_color, declare_module_list, declare_module_map, declare_module_math,
             declare_module_meta, declare_module_selector, declare_module_string, Module,
         },
-        GLOBAL_FUNCTIONS,
+        GLOBAL_FUNCTIONS
     },
     common::{unvendor, BinaryOp, Identifier, ListSeparator, QuoteKind, UnaryOp},
     error::{SassError, SassResult},
@@ -37,10 +37,11 @@ use crate::{
     utils::{to_sentence, trim_ascii},
     value::{
         ArgList, CalculationArg, CalculationName, Number, SassCalculation, SassFunction, SassMap,
-        SassNumber, UserDefinedFunction, Value,
+        SassNumber, UserDefinedFunction, Value, SassMixin, UserDefinedMixin
     },
     ContextFlags, InputSyntax, Options,
 };
+use crate::builtin::GLOBAL_MIXINS;
 
 use super::{
     bin_op::{add, cmp, div, mul, rem, single_eq, sub},
@@ -74,6 +75,16 @@ impl UserDefinedCallable for Arc<AstFunctionDecl> {
 }
 
 impl UserDefinedCallable for AstMixin {
+    fn name(&self) -> Identifier {
+        self.name
+    }
+
+    fn arguments(&self) -> &ArgumentDeclaration {
+        &self.args
+    }
+}
+
+impl UserDefinedCallable for Arc<AstMixin> {
     fn name(&self) -> Identifier {
         self.name
     }
@@ -801,9 +812,9 @@ impl<'a> Visitor<'a> {
     pub fn find_import(&self, path: &Path) -> Option<PathBuf> {
         if let Some(custom_importer) = self.options.custom_importer {
             return custom_importer.find_import(
-                &self.current_import_path, 
-                path, 
-                &self.options.load_paths
+                &self.current_import_path,
+                path,
+                &self.options.load_paths,
             );
         }
         let path_buf = if path.is_absolute() {
@@ -1329,7 +1340,7 @@ impl<'a> Visitor<'a> {
                         "compound selectors may no longer be extended.\nConsider `@extend {}` instead.\nSee http://bit.ly/ExtendCompound for details.\n",
                         compound.components.iter().map(ToString::to_string).collect::<Vec<String>>().join(", ")
                     )
-                , extend_rule.span).into());
+                    , extend_rule.span).into());
             }
 
             self.extender.add_extension(
@@ -1474,9 +1485,9 @@ impl<'a> Visitor<'a> {
                 CssStmt::Media(media_rule, ..) => {
                     !merged_sources.is_empty()
                         && media_rule
-                            .query
-                            .iter()
-                            .all(|query| merged_sources.contains(query))
+                        .query
+                        .iter()
+                        .all(|query| merged_sources.contains(query))
                 }
                 _ => false,
             },
@@ -1743,65 +1754,42 @@ impl<'a> Visitor<'a> {
     }
 
     fn visit_include_stmt(&mut self, include_stmt: AstInclude) -> SassResult<Option<Value>> {
-        let mixin = self
+        let name = include_stmt.name;
+        let mixin = match self
             .env
-            .get_mixin(include_stmt.name, include_stmt.namespace)?;
-
-        match mixin {
-            Mixin::Builtin(mixin) => {
-                if include_stmt.content.is_some() {
-                    return Err(("Mixin doesn't accept a content block.", include_stmt.span).into());
+            .get_mixin(name.node, include_stmt.namespace)? {
+            Some(mixin) => mixin,
+            None => {
+                if let Some(m) = GLOBAL_MIXINS.get(name.as_str()) {
+                    SassMixin::Builtin(m.clone(), name.node)
+                } else {
+                    return Err(("Undefined mixin.", name.span).into());
                 }
-
-                let args = self.eval_args(include_stmt.args, include_stmt.name.span)?;
-                mixin(args, self)?;
-
-                Ok(None)
             }
-            Mixin::UserDefined(mixin, env) => {
-                if include_stmt.content.is_some() && !mixin.has_content {
-                    return Err(("Mixin doesn't accept a content block.", include_stmt.span).into());
-                }
+        };
 
-                let AstInclude { args, content, .. } = include_stmt;
+        let content = include_stmt.content.map(|c| Arc::new(CallableContentBlock {
+            content: c,
+            env: self.env.new_closure(),
+        }));
 
-                let old_in_mixin = self.flags.in_mixin();
-                self.flags.set(ContextFlags::IN_MIXIN, true);
-
-                let callable_content = content.map(|c| {
-                    Arc::new(CallableContentBlock {
-                        content: c,
-                        env: self.env.new_closure(),
-                    })
-                });
-
-                self.run_user_defined_callable::<_, (), _>(
-                    MaybeEvaledArguments::Invocation(args),
-                    mixin,
-                    &env,
-                    include_stmt.name.span,
-                    |mixin, visitor| {
-                        visitor.with_content(callable_content, |visitor| {
-                            for stmt in mixin.body {
-                                let result = visitor.visit_stmt(stmt)?;
-                                debug_assert!(result.is_none());
-                            }
-                            Ok(())
-                        })
-                    },
-                )?;
-
-                self.flags.set(ContextFlags::IN_MIXIN, old_in_mixin);
-
-                Ok(None)
-            }
-        }
+        self.run_mixin_callable(
+            mixin,
+            content,
+            include_stmt.args,
+            include_stmt.span
+        )?;
+        Ok(None)
     }
 
     fn visit_mixin_decl(&mut self, mixin: AstMixin) {
         self.env.insert_mixin(
-            mixin.name,
-            Mixin::UserDefined(mixin, self.env.new_closure()),
+            mixin.name.clone(),
+            SassMixin::UserDefined(UserDefinedMixin {
+                name: mixin.name.clone(),
+                mixin: Arc::new(mixin),
+                env: self.env.new_closure()
+            }),
         );
     }
 
@@ -2388,6 +2376,67 @@ impl<'a> Visitor<'a> {
         )
     }
 
+    pub(crate) fn run_mixin_callable(
+        &mut self,
+        mixin: SassMixin,
+        content: Option<Arc<CallableContentBlock>>,
+        arguments: ArgumentInvocation,
+        span: Span,
+    ) -> SassResult<()> {
+        self.run_mixin_callable_with_maybe_evaled(
+            mixin,
+            content,
+            MaybeEvaledArguments::Invocation(arguments),
+            span
+        )
+    }
+
+    pub(crate) fn run_mixin_callable_with_maybe_evaled (
+        &mut self,
+        mixin: SassMixin,
+        callback_content: Option<Arc<CallableContentBlock>>,
+        arguments: MaybeEvaledArguments,
+        span: Span
+    ) -> SassResult<()> {
+        match mixin {
+            SassMixin::Builtin(mixin, _name) => {
+                if callback_content.is_some() {
+                    return Err(("Mixin doesn't accept a content block.", span).into());
+                }
+                let evaluated = self.eval_maybe_args(arguments, span)?;
+                mixin.0(evaluated, self)?;
+                Ok(())
+            }
+            SassMixin::UserDefined(UserDefinedMixin { mixin, env, .. }) => {
+                if callback_content.is_some() && !mixin.has_content {
+                    return Err(("Mixin doesn't accept a content block.", span).into());
+                }
+
+                let old_in_mixin = self.flags.in_mixin();
+                self.flags.set(ContextFlags::IN_MIXIN, true);
+
+                self.run_user_defined_callable::<_, (), _>(
+                    arguments,
+                    mixin,
+                    &env,
+                    span,
+                    |mixin, visitor| {
+                        visitor.with_content(callback_content, |visitor| {
+                            for stmt in mixin.body.clone() {
+                                let result = visitor.visit_stmt(stmt)?;
+                                debug_assert!(result.is_none());
+                            }
+                            Ok(())
+                        })
+                    }
+                )?;
+
+                self.flags.set(ContextFlags::IN_MIXIN, old_in_mixin);
+                Ok(())
+            }
+        }
+    }
+
     pub(crate) fn run_function_callable_with_maybe_evaled(
         &mut self,
         func: SassFunction,
@@ -2606,17 +2655,17 @@ impl<'a> Visitor<'a> {
         Ok(match expr {
             AstExpr::Paren(inner) => match &*inner {
                 AstExpr::FunctionCall(FunctionCallExpr { ref name, .. })
-                    if name.as_str().to_ascii_lowercase() == "var" =>
-                {
-                    let result =
-                        self.visit_calculation_value((*inner).clone(), in_min_or_max, span)?;
+                if name.as_str().to_ascii_lowercase() == "var" =>
+                    {
+                        let result =
+                            self.visit_calculation_value((*inner).clone(), in_min_or_max, span)?;
 
-                    if let CalculationArg::String(text) = result {
-                        CalculationArg::String(format!("({})", text))
-                    } else {
-                        result
+                        if let CalculationArg::String(text) = result {
+                            CalculationArg::String(format!("({})", text))
+                        } else {
+                            result
+                        }
                     }
-                }
                 _ => self.visit_calculation_value((*inner).clone(), in_min_or_max, span)?,
             },
             AstExpr::String(string_expr, _span) => {
@@ -2640,10 +2689,10 @@ impl<'a> Visitor<'a> {
                 let result = self.visit_expr(expr)?;
                 match result {
                     Value::Dimension(SassNumber {
-                        num,
-                        unit,
-                        as_slash,
-                    }) => CalculationArg::Number(SassNumber {
+                                         num,
+                                         unit,
+                                         as_slash,
+                                     }) => CalculationArg::Number(SassNumber {
                         num,
                         unit,
                         as_slash,
@@ -2660,7 +2709,7 @@ impl<'a> Visitor<'a> {
                             ),
                             span,
                         )
-                            .into())
+                            .into());
                     }
                 }
             }
@@ -2971,7 +3020,7 @@ impl<'a> Visitor<'a> {
             self.style_rule_ignoring_at_root
                 .as_ref()
                 // todo: this clone should be superfluous(?)
-                .map(|x| x.as_selector_list().clone()),
+                .map(|x| x.as_selector_list().clone().to_owned()),
             !self.flags.at_root_excluding_style_rule(),
         )?;
 

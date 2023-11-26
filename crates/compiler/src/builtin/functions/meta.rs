@@ -127,7 +127,7 @@ pub(crate) fn global_variable_exists(
                 format!("$module: {} is not a string.", v.inspect(args.span())?),
                 args.span(),
             )
-                .into())
+                .into());
         }
     };
 
@@ -135,8 +135,8 @@ pub(crate) fn global_variable_exists(
         (*(*visitor.env.modules)
             .borrow()
             .get(module_name.into(), args.span())?)
-        .borrow()
-        .var_exists(name)
+            .borrow()
+            .var_exists(name)
     } else {
         (*visitor.env.global_vars()).borrow().contains_key(&name)
     }))
@@ -158,7 +158,7 @@ pub(crate) fn mixin_exists(mut args: ArgumentResult, visitor: &mut Visitor) -> S
                 format!("$module: {} is not a string.", v.inspect(args.span())?),
                 args.span(),
             )
-                .into())
+                .into());
         }
     };
 
@@ -166,8 +166,8 @@ pub(crate) fn mixin_exists(mut args: ArgumentResult, visitor: &mut Visitor) -> S
         (*(*visitor.env.modules)
             .borrow()
             .get(module_name.into(), args.span())?)
-        .borrow()
-        .mixin_exists(name)
+            .borrow()
+            .mixin_exists(name)
     } else {
         visitor.env.mixin_exists(name)
     }))
@@ -193,7 +193,7 @@ pub(crate) fn function_exists(
                 format!("$module: {} is not a string.", v.inspect(args.span())?),
                 args.span(),
             )
-                .into())
+                .into());
         }
     };
 
@@ -201,8 +201,8 @@ pub(crate) fn function_exists(
         (*(*visitor.env.modules)
             .borrow()
             .get(module_name.into(), args.span())?)
-        .borrow()
-        .fn_exists(name)
+            .borrow()
+            .fn_exists(name)
     } else {
         visitor.env.fn_exists(name)
     }))
@@ -217,7 +217,7 @@ pub(crate) fn get_function(mut args: ArgumentResult, visitor: &mut Visitor) -> S
                 format!("$name: {} is not a string.", v.inspect(args.span())?),
                 args.span(),
             )
-                .into())
+                .into());
         }
     };
     let css = args.default_arg(1, "css", Value::False).is_truthy();
@@ -229,7 +229,7 @@ pub(crate) fn get_function(mut args: ArgumentResult, visitor: &mut Visitor) -> S
                 format!("$module: {} is not a string.", v.inspect(args.span())?),
                 args.span(),
             )
-                .into())
+                .into());
         }
     };
 
@@ -266,6 +266,48 @@ pub(crate) fn get_function(mut args: ArgumentResult, visitor: &mut Visitor) -> S
     }
 }
 
+pub(crate) fn get_mixin(mut args: ArgumentResult, visitor: &mut Visitor) -> SassResult<Value> {
+    args.max_args(2)?;
+    let name: Identifier = match args.get_err(0, "name")? {
+        Value::String(s, _) => s.into(),
+        v => {
+            return Err((
+                format!("$name: {} is not a string.", v.inspect(args.span())?),
+                args.span(),
+            )
+                .into());
+        }
+    };
+    let module = match args.default_arg(1, "module", Value::Null) {
+        Value::String(s, ..) => Some(s),
+        Value::Null => None,
+        v => {
+            return Err((
+                format!("$module: {} is not a string.", v.inspect(args.span())?),
+                args.span(),
+            )
+                .into());
+        }
+    };
+
+    let mixin = if let Some(module_name) = module {
+        visitor.env.get_mixin(
+            name.into(),
+            Some(Spanned {
+                node: module_name.into(),
+                span: args.span(),
+            }),
+        )?
+    } else {
+        visitor.env.get_mixin(name, None)?
+    };
+
+    match mixin {
+        Some(mixin) => Ok(Value::MixinRef(Box::new(mixin))),
+        None => Err((format!("Mixin not found: {}", name), args.span()).into()),
+    }
+}
+
 pub(crate) fn call(mut args: ArgumentResult, visitor: &mut Visitor) -> SassResult<Value> {
     let span = args.span();
     let func = match args.get_err(0, "function")? {
@@ -289,7 +331,7 @@ pub(crate) fn call(mut args: ArgumentResult, visitor: &mut Visitor) -> SassResul
                 ),
                 span,
             )
-                .into())
+                .into());
         }
     };
 
@@ -323,7 +365,7 @@ pub(crate) fn keywords(mut args: ArgumentResult, visitor: &mut Visitor) -> SassR
                 format!("$args: {} is not an argument list.", v.inspect(span)?),
                 span,
             )
-                .into())
+                .into());
         }
     };
 
@@ -355,6 +397,7 @@ pub(crate) fn declare(f: &mut GlobalFunctionMap) {
     f.insert("mixin-exists", Builtin::new(mixin_exists));
     f.insert("function-exists", Builtin::new(function_exists));
     f.insert("get-function", Builtin::new(get_function));
+    f.insert("get-mixin", Builtin::new(get_mixin));
     f.insert("call", Builtin::new(call));
     f.insert("content-exists", Builtin::new(content_exists));
     f.insert("keywords", Builtin::new(keywords));

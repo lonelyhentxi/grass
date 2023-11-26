@@ -7,18 +7,17 @@ use std::{
 use codemap::Spanned;
 
 use crate::{
-    ast::Mixin,
     builtin::GLOBAL_FUNCTIONS,
     common::Identifier,
     error::SassResult,
-    value::{SassFunction, Value},
+    value::{SassFunction, Value, SassMixin},
 };
 
 #[allow(clippy::type_complexity)]
 #[derive(Debug, Default, Clone)]
 pub(crate) struct Scopes {
     pub(crate) variables: Arc<RefCell<Vec<Arc<RefCell<BTreeMap<Identifier, Value>>>>>>,
-    pub(crate) mixins: Arc<RefCell<Vec<Arc<RefCell<BTreeMap<Identifier, Mixin>>>>>>,
+    pub(crate) mixins: Arc<RefCell<Vec<Arc<RefCell<BTreeMap<Identifier, SassMixin>>>>>>,
     pub(crate) functions: Arc<RefCell<Vec<Arc<RefCell<BTreeMap<Identifier, SassFunction>>>>>>,
     len: Arc<Cell<usize>>,
     pub last_variable_index: Option<(Identifier, usize)>,
@@ -61,7 +60,7 @@ impl Scopes {
         Arc::clone(&(*self.functions).borrow()[0])
     }
 
-    pub fn global_mixins(&self) -> Arc<RefCell<BTreeMap<Identifier, Mixin>>> {
+    pub fn global_mixins(&self) -> Arc<RefCell<BTreeMap<Identifier, SassMixin>>> {
         Arc::clone(&(*self.mixins).borrow()[0])
     }
 
@@ -175,23 +174,24 @@ impl Scopes {
 
 /// Mixins
 impl Scopes {
-    pub fn insert_mixin(&mut self, name: Identifier, mixin: Mixin) {
+    pub fn insert_mixin(&mut self, name: Identifier, mixin: SassMixin) {
         debug_assert_eq!(self.len(), (*self.variables).borrow().len());
         (*(*self.mixins).borrow_mut().last_mut().unwrap())
             .borrow_mut()
             .insert(name, mixin);
     }
 
-    pub fn get_mixin(&self, name: Spanned<Identifier>) -> SassResult<Mixin> {
+    pub fn get_mixin(&self, name: Identifier) -> Option<SassMixin> {
         debug_assert_eq!(self.len(), (*self.variables).borrow().len());
         for scope in (*self.mixins).borrow().iter().rev() {
-            match (**scope).borrow().get(&name.node) {
-                Some(mixin) => return Ok(mixin.clone()),
-                None => continue,
+            let mixin = (**scope).borrow().get(&name).cloned();
+
+            if mixin.is_some() {
+                return mixin;
             }
         }
 
-        Err(("Undefined mixin.", name.span).into())
+        None
     }
 
     pub fn mixin_exists(&self, name: Identifier) -> bool {

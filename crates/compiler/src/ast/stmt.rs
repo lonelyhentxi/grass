@@ -152,6 +152,14 @@ impl PartialEq for AstFunctionDecl {
 
 impl Eq for AstFunctionDecl {}
 
+impl PartialEq for AstMixin {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for AstMixin {}
+
 #[derive(Debug, Clone)]
 pub struct AstLoudComment {
     pub text: Interpolation,

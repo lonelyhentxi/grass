@@ -18,6 +18,7 @@ use crate::{
     },
     Options,
 };
+use crate::value::SassMixin;
 
 pub(crate) fn serialize_selector_list(
     list: &SelectorList,
@@ -103,6 +104,19 @@ pub(crate) fn inspect_function_ref(
     let mut serializer = Serializer::new(options, &code_map, true, span);
 
     serializer.visit_function_ref(func, span)?;
+
+    Ok(serializer.finish_for_expr())
+}
+
+pub(crate) fn inspect_mixin_ref(
+    func: &SassMixin,
+    options: &Options,
+    span: Span,
+) -> SassResult<String> {
+    let code_map = CodeMap::new();
+    let mut serializer = Serializer::new(options, &code_map, true, span);
+
+    serializer.visit_mixin_ref(func, span)?;
 
     Ok(serializer.finish_for_expr())
 }
@@ -934,6 +948,18 @@ impl<'a> Serializer<'a> {
         Ok(())
     }
 
+    fn visit_mixin_ref(&mut self, mixin: &SassMixin, span: Span) -> SassResult<()> {
+        if !self.inspect {
+            return Err((format!(
+                "{} isn't a valid css value", inspect_mixin_ref(mixin, self.options, span)?), span).into())
+        }
+        self.buffer.extend_from_slice(b"get-mixin(");
+        self.visit_quoted_string(false, mixin.name().as_str());
+        self.buffer.push(b')');
+
+        Ok(())
+    }
+
     fn visit_arglist(&mut self, arglist: &ArgList, span: Span) -> SassResult<()> {
         self.visit_list(&arglist.elems, ListSeparator::Comma, Brackets::None, span)
     }
@@ -956,8 +982,8 @@ impl<'a> Serializer<'a> {
             Value::String(s, QuoteKind::Quoted) => self.visit_quoted_string(false, s),
             Value::String(s, QuoteKind::None) => self.visit_unquoted_string(s),
             Value::ArgList(arglist) => self.visit_arglist(arglist, span)?,
+            Value::MixinRef(mixin) => self.visit_mixin_ref(mixin, span)?
         }
-
         Ok(())
     }
 

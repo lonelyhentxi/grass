@@ -27,7 +27,7 @@ pub struct Options<'a> {
     pub(crate) quiet: bool,
     pub(crate) input_syntax: Option<InputSyntax>,
     pub(crate) custom_fns: HashMap<String, Builtin>,
-    pub(crate) custom_importer: Option<&'a dyn CustomImporter>
+    pub(crate) custom_importer: Option<&'a dyn CustomImporter>,
 }
 
 impl Default for Options<'_> {

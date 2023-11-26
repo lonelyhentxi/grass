@@ -1,12 +1,12 @@
 use codemap::{Span, Spanned};
 
 use crate::{
-    ast::{AstForwardRule, Configuration, ConfiguredValue, Mixin},
+    ast::{AstForwardRule, Configuration, ConfiguredValue},
     builtin::modules::{ForwardedModule, Module, ModuleScope, Modules, ShadowedModule},
     common::Identifier,
     error::SassResult,
     selector::ExtensionStore,
-    value::{SassFunction, Value},
+    value::{SassFunction, Value, SassMixin},
 };
 use std::{
     cell::RefCell,
@@ -245,7 +245,7 @@ impl Environment {
         // todo: assertnoconflicts
     }
 
-    pub fn insert_mixin(&mut self, name: Identifier, mixin: Mixin) {
+    pub fn insert_mixin(&mut self, name: Identifier, mixin: SassMixin) {
         self.scopes.insert_mixin(name, mixin);
     }
 
@@ -255,25 +255,19 @@ impl Environment {
 
     pub fn get_mixin(
         &self,
-        name: Spanned<Identifier>,
+        name: Identifier,
         namespace: Option<Spanned<Identifier>>,
-    ) -> SassResult<Mixin> {
+    ) -> SassResult<Option<SassMixin>> {
         if let Some(namespace) = namespace {
             let modules = (*self.modules).borrow();
             let module = modules.get(namespace.node, namespace.span)?;
-            return (*module).borrow().get_mixin(name);
+            return Ok((*module).borrow().get_mixin(name));
         }
 
-        match self.scopes.get_mixin(name) {
-            Ok(v) => Ok(v),
-            Err(e) => {
-                if let Some(v) = self.get_mixin_from_global_modules(name.node) {
-                    return Ok(v);
-                }
-
-                Err(e)
-            }
-        }
+        Ok(self
+            .scopes
+            .get_mixin(name)
+            .or_else(|| self.get_mixin_from_global_modules(name)))
     }
 
     pub fn insert_fn(&mut self, func: SassFunction) {
@@ -403,7 +397,7 @@ impl Environment {
         self.scopes.global_variables()
     }
 
-    pub fn global_mixins(&self) -> Arc<RefCell<BTreeMap<Identifier, Mixin>>> {
+    pub fn global_mixins(&self) -> Arc<RefCell<BTreeMap<Identifier, SassMixin>>> {
         self.scopes.global_mixins()
     }
 
@@ -421,7 +415,7 @@ impl Environment {
         self.from_one_module(name, "function", |module| (**module).borrow().get_fn(name))
     }
 
-    fn get_mixin_from_global_modules(&self, name: Identifier) -> Option<Mixin> {
+    fn get_mixin_from_global_modules(&self, name: Identifier) -> Option<SassMixin> {
         self.from_one_module(name, "mixin", |module| {
             (**module).borrow().get_mixin_no_err(name)
         })

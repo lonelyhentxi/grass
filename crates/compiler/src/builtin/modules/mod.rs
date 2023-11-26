@@ -8,8 +8,8 @@ use std::{
 use codemap::{Span, Spanned};
 
 use crate::{
-    ast::{ArgumentResult, AstForwardRule, BuiltinMixin, Mixin},
-    builtin::Builtin,
+    ast::{ArgumentResult, AstForwardRule},
+    builtin::{Builtin, BuiltinMixin},
     common::Identifier,
     error::SassResult,
     evaluate::{Environment, Visitor},
@@ -17,7 +17,7 @@ use crate::{
     utils::{
         BaseMapView, LimitedMapView, MapView, MergedMapView, PrefixedMapView, PublicMemberMapView,
     },
-    value::{SassFunction, SassMap, Value},
+    value::{SassFunction, SassMap, Value, SassMixin},
 };
 
 use super::builtin_imports::QuoteKind;
@@ -65,7 +65,7 @@ impl ShadowedModule {
     }
 
     fn needs_blocklist<V: fmt::Debug + Clone>(
-        map: Arc<dyn MapView<Value = V>>,
+        map: Arc<dyn MapView<Value=V>>,
         blocklist: Option<&HashSet<Identifier>>,
     ) -> bool {
         blocklist.is_some()
@@ -74,9 +74,9 @@ impl ShadowedModule {
     }
 
     fn shadowed_map<V: fmt::Debug + Clone + 'static>(
-        map: Arc<dyn MapView<Value = V>>,
+        map: Arc<dyn MapView<Value=V>>,
         blocklist: Option<&HashSet<Identifier>>,
-    ) -> Arc<dyn MapView<Value = V>> {
+    ) -> Arc<dyn MapView<Value=V>> {
         match blocklist {
             Some(..) if !Self::needs_blocklist(Arc::clone(&map), blocklist) => map,
             Some(blocklist) => Arc::new(LimitedMapView::blocklist(map, blocklist)),
@@ -154,11 +154,11 @@ impl ForwardedModule {
     }
 
     fn forwarded_map<T: Clone + fmt::Debug + 'static>(
-        mut map: Arc<dyn MapView<Value = T>>,
+        mut map: Arc<dyn MapView<Value=T>>,
         prefix: Option<&str>,
         safelist: Option<&HashSet<Identifier>>,
         blocklist: Option<&HashSet<Identifier>>,
-    ) -> Arc<dyn MapView<Value = T>> {
+    ) -> Arc<dyn MapView<Value=T>> {
         debug_assert!(safelist.is_none() || blocklist.is_none());
 
         if prefix.is_none() && safelist.is_none() && blocklist.is_none() {
@@ -180,13 +180,13 @@ impl ForwardedModule {
             && rule.shown_mixins_and_functions.is_none()
             && rule.shown_variables.is_none()
             && rule
-                .hidden_mixins_and_functions
-                .as_ref()
-                .map_or(false, HashSet::is_empty)
+            .hidden_mixins_and_functions
+            .as_ref()
+            .map_or(false, HashSet::is_empty)
             && rule
-                .hidden_variables
-                .as_ref()
-                .map_or(false, HashSet::is_empty)
+            .hidden_variables
+            .as_ref()
+            .map_or(false, HashSet::is_empty)
         {
             module
         } else {
@@ -199,9 +199,9 @@ impl ForwardedModule {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ModuleScope {
-    pub variables: Arc<dyn MapView<Value = Value>>,
-    pub mixins: Arc<dyn MapView<Value = Mixin>>,
-    pub functions: Arc<dyn MapView<Value = SassFunction>>,
+    pub variables: Arc<dyn MapView<Value=Value>>,
+    pub mixins: Arc<dyn MapView<Value=SassMixin>>,
+    pub functions: Arc<dyn MapView<Value=SassFunction>>,
 }
 
 impl ModuleScope {
@@ -294,16 +294,16 @@ impl Modules {
 }
 
 fn member_map<V: fmt::Debug + Clone + 'static>(
-    local: Arc<dyn MapView<Value = V>>,
-    others: Vec<Arc<dyn MapView<Value = V>>>,
-) -> Arc<dyn MapView<Value = V>> {
+    local: Arc<dyn MapView<Value=V>>,
+    others: Vec<Arc<dyn MapView<Value=V>>>,
+) -> Arc<dyn MapView<Value=V>> {
     let local_map = PublicMemberMapView(local);
 
     if others.is_empty() {
         return Arc::new(local_map);
     }
 
-    let mut all_maps: Vec<Arc<dyn MapView<Value = V>>> =
+    let mut all_maps: Vec<Arc<dyn MapView<Value=V>>> =
         others.into_iter().filter(|map| !map.is_empty()).collect();
 
     all_maps.push(Arc::new(local_map));
@@ -385,7 +385,7 @@ impl Module {
         scope.variables.get(name)
     }
 
-    pub fn get_mixin_no_err(&self, name: Identifier) -> Option<Mixin> {
+    pub fn get_mixin_no_err(&self, name: Identifier) -> Option<SassMixin> {
         let scope = self.scope();
 
         scope.mixins.get(name)
@@ -394,7 +394,7 @@ impl Module {
     pub fn update_var(&mut self, name: Spanned<Identifier>, value: Value) -> SassResult<()> {
         let scope = match self {
             Self::Builtin { .. } => {
-                return Err(("Cannot modify built-in variable.", name.span).into())
+                return Err(("Cannot modify built-in variable.", name.span).into());
             }
             Self::Environment { scope, .. }
             | Self::Forwarded(ForwardedModule { scope, .. })
@@ -408,19 +408,21 @@ impl Module {
         Ok(())
     }
 
-    pub fn get_mixin(&self, name: Spanned<Identifier>) -> SassResult<Mixin> {
+    pub fn get_mixin(&self, name: Identifier) -> Option<SassMixin> {
         let scope = self.scope();
 
-        match scope.mixins.get(name.node) {
-            Some(v) => Ok(v),
-            None => Err(("Undefined mixin.", name.span).into()),
-        }
+        scope.mixins.get(name)
     }
 
-    pub fn insert_builtin_mixin(&mut self, name: &'static str, mixin: BuiltinMixin) {
-        let scope = self.scope();
+    pub fn insert_builtin_mixin(&mut self, name: &'static str, mixin: fn(ArgumentResult, &mut Visitor) -> SassResult<()>) {
+        let ident: Identifier = name.into();
 
-        scope.mixins.insert(name.into(), Mixin::Builtin(mixin));
+        let scope = match self {
+            Self::Builtin { scope } => scope,
+            _ => unreachable!(),
+        };
+
+        scope.mixins.insert(ident.clone(), SassMixin::Builtin(BuiltinMixin::new(mixin), ident));
     }
 
     pub fn insert_builtin_var(&mut self, name: &'static str, value: Value) {

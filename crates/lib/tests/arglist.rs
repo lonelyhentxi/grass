@@ -140,3 +140,13 @@ error!(
     }",
     "Error: () isn't a valid CSS value."
 );
+test!(
+    empty_arglist_with_no_empty_list_is_valid,
+    "@mixin foo($font...) {
+       font-family: $font, sans-serif;
+    }
+    .class {
+       @include foo;
+    }",
+    ".class {\n  font-family: sans-serif;\n}\n"
+);

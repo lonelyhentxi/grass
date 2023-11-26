@@ -52,7 +52,11 @@ impl ArgList {
     }
 
     pub fn is_blank(&self) -> bool {
-        !self.is_empty() && (self.elems.iter().all(Value::is_blank))
+        // !self.is_empty() && (self.elems.iter().all(Value::is_blank)) why !self.is_empty
+        // @see
+        // [dart-sass SassList implements](https://github.com/sass/dart-sass/blob/main/lib/src/value/list.dart#L15)
+        // [dart-sass SassArgumentList implements](https://github.com/sass/dart-sass/blob/main/lib/src/value/argument_list.dart#L17)
+        self.elems.iter().all(Value::is_blank)
     }
 
     pub fn keywords(&self) -> &BTreeMap<Identifier, Value> {

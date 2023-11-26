@@ -207,6 +207,7 @@ fn from_string_with_file_name<P: AsRef<Path>>(
     let mut prev_was_group_end = false;
     let mut prev_requires_semicolon = false;
     for stmt in stmts {
+
         if stmt.is_invisible() {
             continue;
         }
