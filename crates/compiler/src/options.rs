@@ -3,11 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{builtin::Builtin, Fs, StdFs};
+use crate::{builtin::Builtin, Fs, Logger, StdFs, StdLogger};
 
 pub trait CustomImporter: std::fmt::Debug {
-    fn find_import(&self, 
-        current_path: &Path, 
+    fn find_import(&self,
+        current_path: &Path,
         import_path: &Path,
         load_paths: &[PathBuf]
     ) -> Option<PathBuf>;
@@ -20,6 +20,7 @@ pub trait CustomImporter: std::fmt::Debug {
 #[derive(Debug)]
 pub struct Options<'a> {
     pub(crate) fs: &'a dyn Fs,
+    pub(crate) logger: &'a dyn Logger,
     pub(crate) style: OutputStyle,
     pub(crate) load_paths: Vec<PathBuf>,
     pub(crate) allows_charset: bool,
@@ -35,6 +36,7 @@ impl Default for Options<'_> {
     fn default() -> Self {
         Self {
             fs: &StdFs,
+            logger: &StdLogger,
             style: OutputStyle::Expanded,
             load_paths: Vec::new(),
             allows_charset: true,
@@ -59,6 +61,16 @@ impl<'a> Options<'a> {
         self
     }
 
+    /// This option allows you to define how log events should be handled
+    ///
+    /// Be default, [`StdLogger`] is used, which writes all events to standard output.
+    #[must_use]
+    #[inline]
+    pub fn logger(mut self, logger: &'a dyn Logger) -> Self {
+        self.logger = logger;
+        self
+    }
+
     /// `grass` currently offers 2 different output styles
     ///
     ///  - [`OutputStyle::Expanded`] writes each selector and declaration on its own line.
@@ -73,11 +85,11 @@ impl<'a> Options<'a> {
         self
     }
 
-    /// This flag tells Sass not to emit any warnings
-    /// when compiling. By default, Sass emits warnings
-    /// when deprecated features are used or when the
-    /// `@warn` rule is encountered. It also silences the
-    /// `@debug` rule.
+    /// This flag tells Sass not to emit any warnings when compiling. By default,
+    /// Sass emits warnings when deprecated features are used or when the `@warn`
+    /// rule is encountered. It also silences the `@debug` rule.
+    ///
+    /// Setting this option to `true` will stop all logs from reaching the [`crate::Logger`].
     ///
     /// By default, this value is `false` and warnings are emitted.
     #[must_use]
@@ -87,16 +99,14 @@ impl<'a> Options<'a> {
         self
     }
 
-    /// All Sass implementations allow users to provide
-    /// load paths: paths on the filesystem that Sass
-    /// will look in when locating modules. For example,
-    /// if you pass `node_modules/susy/sass` as a load path,
-    /// you can use `@import "susy"` to load `node_modules/susy/sass/susy.scss`.
+    /// All Sass implementations allow users to provide load paths: paths on the
+    /// filesystem that Sass will look in when locating modules. For example, if
+    /// you pass `node_modules/susy/sass` as a load path, you can use
+    /// `@import "susy"` to load `node_modules/susy/sass/susy.scss`.
     ///
-    /// Imports will always be resolved relative to the current
-    /// file first, though. Load paths will only be used if no
-    /// relative file exists that matches the module's URL. This
-    /// ensures that you can't accidentally mess up your relative
+    /// Imports will always be resolved relative to the current file first, though.
+    /// Load paths will only be used if no relative file exists that matches the
+    /// module's URL. This ensures that you can't accidentally mess up your relative
     /// imports when you add a new library.
     ///
     /// This method will append a single path to the list.

@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, HashSet},
     path::PathBuf,
+    rc::Rc,
     sync::Arc,
 };
 
@@ -309,17 +310,17 @@ pub struct ConfiguredVariable {
 pub struct Configuration {
     pub(crate) values: Arc<dyn MapView<Value = ConfiguredValue>>,
     #[allow(unused)]
-    pub(crate) original_config: Option<Arc<RefCell<Self>>>,
+    pub(crate) original_config: Option<Rc<RefCell<Self>>>,
     pub(crate) span: Option<Span>,
 }
 
 impl Configuration {
     pub fn through_forward(
-        config: Arc<RefCell<Self>>,
+        config: Rc<RefCell<Self>>,
         forward: &AstForwardRule,
-    ) -> Arc<RefCell<Self>> {
+    ) -> Rc<RefCell<Self>> {
         if (*config).borrow().is_empty() {
-            return Arc::new(RefCell::new(Configuration::empty()));
+            return Rc::new(RefCell::new(Configuration::empty()));
         }
 
         let mut new_values = Arc::clone(&(*config).borrow().values);
@@ -338,14 +339,14 @@ impl Configuration {
             new_values = Arc::new(LimitedMapView::blocklist(new_values, hidden_variables));
         }
 
-        Arc::new(RefCell::new(Self::with_values(
+        Rc::new(RefCell::new(Self::with_values(
             config,
             Arc::clone(&new_values),
         )))
     }
 
     fn with_values(
-        config: Arc<RefCell<Self>>,
+        config: Rc<RefCell<Self>>,
         values: Arc<dyn MapView<Value = ConfiguredValue>>,
     ) -> Self {
         Self {
@@ -356,7 +357,7 @@ impl Configuration {
     }
 
     pub fn first(&self) -> Option<Spanned<Identifier>> {
-        let name = *self.values.keys().get(0)?;
+        let name = *self.values.keys().first()?;
         let value = self.values.get(name)?;
 
         Some(Spanned {
@@ -402,10 +403,10 @@ impl Configuration {
     }
 
     #[allow(unused)]
-    pub fn original_config(config: Arc<RefCell<Configuration>>) -> Arc<RefCell<Configuration>> {
+    pub fn original_config(config: Rc<RefCell<Configuration>>) -> Rc<RefCell<Configuration>> {
         match (*config).borrow().original_config.as_ref() {
-            Some(v) => Arc::clone(v),
-            None => Arc::clone(&config),
+            Some(v) => Rc::clone(v),
+            None => Rc::clone(&config),
         }
     }
 }

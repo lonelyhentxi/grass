@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use codemap::{CodeMap, Span, Spanned};
+use codemap::{Span, Spanned};
 
 use crate::{
     ast::*,
@@ -23,17 +23,15 @@ use super::{
     BaseParser, DeclarationOrBuffer, ScssParser, VariableDeclOrInterpolation, RESERVED_IDENTIFIERS,
 };
 
-// todo: can we simplify lifetimes (by maybe not storing reference to lexer)
 /// Default implementations are oriented towards the SCSS syntax, as both CSS and
 /// SCSS share the behavior
-pub(crate) trait StylesheetParser<'a>: BaseParser<'a> + Sized {
+pub(crate) trait StylesheetParser<'a>: BaseParser + Sized {
     // todo: make constant?
     fn is_plain_css(&self) -> bool;
     // todo: make constant?
     fn is_indented(&self) -> bool;
     fn options(&self) -> &Options;
     fn path(&self) -> &Path;
-    fn map(&mut self) -> &mut CodeMap;
     fn empty_span(&self) -> Span;
     fn current_indentation(&self) -> usize;
     fn flags(&self) -> &ContextFlags;

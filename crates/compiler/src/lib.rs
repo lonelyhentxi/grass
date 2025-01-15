@@ -47,21 +47,14 @@ grass input.scss
     clippy::multiple_crate_versions,
     clippy::wrong_self_convention,
     clippy::comparison_chain,
-
-    // these features are only available on nightly
-    clippy::unnested_or_patterns,
-    clippy::uninlined_format_args,
+    clippy::unwrap_or_default,
+    clippy::manual_unwrap_or_default,
 
     // todo: these should be enabled
-    clippy::cast_sign_loss,
-    clippy::cast_lossless,
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
+    clippy::arc_with_non_send_sync,
 
     // todo: unignore once we bump MSRV
-    clippy::format_push_string,
-    clippy::unnecessary_unwrap,
-    clippy::needless_late_init,
+    clippy::assigning_clones,
 
     unknown_lints,
 )]
@@ -80,6 +73,7 @@ pub use crate::error::{
     PublicSassErrorKind as ErrorKind, SassError as Error, SassResult as Result,
 };
 pub use crate::fs::{Fs, NullFs, StdFs};
+pub use crate::logger::{Logger, NullLogger, StdLogger};
 pub use crate::options::{InputSyntax, Options, OutputStyle, CustomImporter};
 pub use crate::{builtin::Builtin, evaluate::Visitor};
 pub(crate) use crate::{context_flags::ContextFlags, lexer::Token};
@@ -114,6 +108,7 @@ mod evaluate;
 mod fs;
 mod interner;
 mod lexer;
+mod logger;
 mod options;
 mod parse;
 mod selector;
@@ -145,13 +140,13 @@ pub fn parse_stylesheet<P: AsRef<Path>>(
 
     let stylesheet = match input_syntax {
         InputSyntax::Scss => {
-            ScssParser::new(lexer, &mut map, options, empty_span, file_name.as_ref()).__parse()
+            ScssParser::new(lexer, options, empty_span, file_name.as_ref()).__parse()
         }
         InputSyntax::Sass => {
-            SassParser::new(lexer, &mut map, options, empty_span, file_name.as_ref()).__parse()
+            SassParser::new(lexer, options, empty_span, file_name.as_ref()).__parse()
         }
         InputSyntax::Css => {
-            CssParser::new(lexer, &mut map, options, empty_span, file_name.as_ref()).__parse()
+            CssParser::new(lexer, options, empty_span, file_name.as_ref()).__parse()
         }
     };
 
@@ -180,13 +175,13 @@ fn from_string_with_file_name<P: AsRef<Path>>(
 
     let stylesheet = match input_syntax {
         InputSyntax::Scss => {
-            ScssParser::new(lexer, &mut map, options, empty_span, file_name.as_ref()).__parse()
+            ScssParser::new(lexer, options, empty_span, file_name.as_ref()).__parse()
         }
         InputSyntax::Sass => {
-            SassParser::new(lexer, &mut map, options, empty_span, file_name.as_ref()).__parse()
+            SassParser::new(lexer, options, empty_span, file_name.as_ref()).__parse()
         }
         InputSyntax::Css => {
-            CssParser::new(lexer, &mut map, options, empty_span, file_name.as_ref()).__parse()
+            CssParser::new(lexer, options, empty_span, file_name.as_ref()).__parse()
         }
     };
 
