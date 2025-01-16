@@ -6,7 +6,7 @@ use grass_compiler::StdFs;
 use proc_macro::TokenStream;
 #[cfg(not(feature = "nightly"))]
 use quote::format_ident;
-use syn::{LitStr, parse_macro_input};
+use syn::{parse_macro_input, LitStr};
 
 use quote::__private::TokenStream as TokenStream2;
 
@@ -16,7 +16,7 @@ struct FileTracker<'a> {
     fs: &'a dyn grass_compiler::Fs,
 }
 
-impl<'a> grass_compiler::Fs for FileTracker<'a> {
+impl grass_compiler::Fs for FileTracker<'_> {
     fn is_dir(&self, path: &std::path::Path) -> bool {
         #[cfg(feature = "nightly")]
         if let Ok(p) = std::fs::canonicalize(path) {

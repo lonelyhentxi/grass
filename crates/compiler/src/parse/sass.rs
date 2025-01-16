@@ -18,7 +18,7 @@ pub(crate) struct SassParser<'a> {
     pub next_indentation_end: Option<usize>,
 }
 
-impl<'a> BaseParser for SassParser<'a> {
+impl BaseParser for SassParser<'_> {
     fn toks(&self) -> &Lexer {
         &self.toks
     }

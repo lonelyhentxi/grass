@@ -74,7 +74,7 @@ pub use crate::error::{
 };
 pub use crate::fs::{Fs, NullFs, StdFs};
 pub use crate::logger::{Logger, NullLogger, StdLogger};
-pub use crate::options::{InputSyntax, Options, OutputStyle, CustomImporter};
+pub use crate::options::{CustomImporter, InputSyntax, Options, OutputStyle};
 pub use crate::{builtin::Builtin, evaluate::Visitor};
 pub(crate) use crate::{context_flags::ContextFlags, lexer::Token};
 use crate::{lexer::Lexer, parse::ScssParser};
@@ -202,7 +202,6 @@ fn from_string_with_file_name<P: AsRef<Path>>(
     let mut prev_was_group_end = false;
     let mut prev_requires_semicolon = false;
     for stmt in stmts {
-
         if stmt.is_invisible() {
             continue;
         }

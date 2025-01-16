@@ -13,6 +13,7 @@ use std::{
 use codemap::{CodeMap, Span, Spanned};
 use indexmap::IndexSet;
 
+use crate::builtin::GLOBAL_MIXINS;
 use crate::{
     ast::*,
     builtin::{
@@ -21,7 +22,7 @@ use crate::{
             declare_module_color, declare_module_list, declare_module_map, declare_module_math,
             declare_module_meta, declare_module_selector, declare_module_string, Module,
         },
-        GLOBAL_FUNCTIONS
+        GLOBAL_FUNCTIONS,
     },
     common::{unvendor, BinaryOp, Identifier, ListSeparator, QuoteKind, UnaryOp},
     error::{SassError, SassResult},
@@ -38,11 +39,10 @@ use crate::{
     utils::{to_sentence, trim_ascii},
     value::{
         ArgList, CalculationArg, CalculationName, Number, SassCalculation, SassFunction, SassMap,
-        SassNumber, UserDefinedFunction, Value, SassMixin, UserDefinedMixin
+        SassMixin, SassNumber, UserDefinedFunction, UserDefinedMixin, Value,
     },
     ContextFlags, InputSyntax, Options,
 };
-use crate::builtin::GLOBAL_MIXINS;
 
 use super::{
     bin_op::{add, cmp, div, mul, rem, single_eq, sub},
@@ -1475,9 +1475,9 @@ impl<'a> Visitor<'a> {
                 CssStmt::Media(media_rule, ..) => {
                     !merged_sources.is_empty()
                         && media_rule
-                        .query
-                        .iter()
-                        .all(|query| merged_sources.contains(query))
+                            .query
+                            .iter()
+                            .all(|query| merged_sources.contains(query))
                 }
                 _ => false,
             },
@@ -1739,9 +1739,7 @@ impl<'a> Visitor<'a> {
 
     fn visit_include_stmt(&mut self, include_stmt: AstInclude) -> SassResult<Option<Value>> {
         let name = include_stmt.name;
-        let mixin = match self
-            .env
-            .get_mixin(name.node, include_stmt.namespace)? {
+        let mixin = match self.env.get_mixin(name.node, include_stmt.namespace)? {
             Some(mixin) => mixin,
             None => {
                 if let Some(m) = GLOBAL_MIXINS.get(name.as_str()) {
@@ -1752,27 +1750,24 @@ impl<'a> Visitor<'a> {
             }
         };
 
-        let content = include_stmt.content.map(|c| Arc::new(CallableContentBlock {
-            content: c,
-            env: self.env.new_closure(),
-        }));
+        let content = include_stmt.content.map(|c| {
+            Arc::new(CallableContentBlock {
+                content: c,
+                env: self.env.new_closure(),
+            })
+        });
 
-        self.run_mixin_callable(
-            mixin,
-            content,
-            include_stmt.args,
-            include_stmt.span
-        )?;
+        self.run_mixin_callable(mixin, content, include_stmt.args, include_stmt.span)?;
         Ok(None)
     }
 
     fn visit_mixin_decl(&mut self, mixin: AstMixin) {
         self.env.insert_mixin(
-            mixin.name.clone(),
+            mixin.name,
             SassMixin::UserDefined(UserDefinedMixin {
-                name: mixin.name.clone(),
+                name: mixin.name,
                 mixin: Arc::new(mixin),
-                env: self.env.new_closure()
+                env: self.env.new_closure(),
             }),
         );
     }
@@ -2371,16 +2366,16 @@ impl<'a> Visitor<'a> {
             mixin,
             content,
             MaybeEvaledArguments::Invocation(arguments),
-            span
+            span,
         )
     }
 
-    pub(crate) fn run_mixin_callable_with_maybe_evaled (
+    pub(crate) fn run_mixin_callable_with_maybe_evaled(
         &mut self,
         mixin: SassMixin,
         callback_content: Option<Arc<CallableContentBlock>>,
         arguments: MaybeEvaledArguments,
-        span: Span
+        span: Span,
     ) -> SassResult<()> {
         match mixin {
             SassMixin::Builtin(mixin, _name) => {
@@ -2412,7 +2407,7 @@ impl<'a> Visitor<'a> {
                             }
                             Ok(())
                         })
-                    }
+                    },
                 )?;
 
                 self.flags.set(ContextFlags::IN_MIXIN, old_in_mixin);
@@ -2639,17 +2634,17 @@ impl<'a> Visitor<'a> {
         Ok(match expr {
             AstExpr::Paren(inner) => match &*inner {
                 AstExpr::FunctionCall(FunctionCallExpr { ref name, .. })
-                if name.as_str().to_ascii_lowercase() == "var" =>
-                    {
-                        let result =
-                            self.visit_calculation_value((*inner).clone(), in_min_or_max, span)?;
+                    if name.as_str().eq_ignore_ascii_case("var") =>
+                {
+                    let result =
+                        self.visit_calculation_value((*inner).clone(), in_min_or_max, span)?;
 
-                        if let CalculationArg::String(text) = result {
-                            CalculationArg::String(format!("({})", text))
-                        } else {
-                            result
-                        }
+                    if let CalculationArg::String(text) = result {
+                        CalculationArg::String(format!("({})", text))
+                    } else {
+                        result
                     }
+                }
                 _ => self.visit_calculation_value((*inner).clone(), in_min_or_max, span)?,
             },
             AstExpr::String(string_expr, _span) => {
@@ -2673,10 +2668,10 @@ impl<'a> Visitor<'a> {
                 let result = self.visit_expr(expr)?;
                 match result {
                     Value::Dimension(SassNumber {
-                                         num,
-                                         unit,
-                                         as_slash,
-                                     }) => CalculationArg::Number(SassNumber {
+                        num,
+                        unit,
+                        as_slash,
+                    }) => CalculationArg::Number(SassNumber {
                         num,
                         unit,
                         as_slash,

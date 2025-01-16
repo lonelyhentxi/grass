@@ -17,7 +17,7 @@ pub(crate) struct CssParser<'a> {
     pub options: &'a Options<'a>,
 }
 
-impl<'a> BaseParser for CssParser<'a> {
+impl BaseParser for CssParser<'_> {
     fn toks(&self) -> &Lexer {
         &self.toks
     }

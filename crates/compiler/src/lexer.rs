@@ -125,7 +125,7 @@ impl<'a> TokenLexer<'a> {
     }
 }
 
-impl<'a> Iterator for TokenLexer<'a> {
+impl Iterator for TokenLexer<'_> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         let kind = match self.buf.next()? {

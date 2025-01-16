@@ -131,7 +131,7 @@ macro_rules! assert_err {
 
 /// Suitable for simple import tests. Does not properly implement path resolution --
 /// paths like `a/../b` will not work
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TestFs {
     files: BTreeMap<PathBuf, Cow<'static, str>>,
 }

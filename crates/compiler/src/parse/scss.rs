@@ -35,7 +35,7 @@ impl<'a> ScssParser<'a> {
     }
 }
 
-impl<'a> BaseParser for ScssParser<'a> {
+impl BaseParser for ScssParser<'_> {
     fn toks(&self) -> &Lexer {
         &self.toks
     }
